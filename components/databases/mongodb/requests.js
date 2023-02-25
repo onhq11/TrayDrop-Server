@@ -91,6 +91,11 @@ export const getUsers = async () => {
 }
 
 export const setNewClipboard = async (text, date, username) => {
+    let out = {
+        result: [],
+        error: null
+    }
+
     try {
         const database = client.db('traydrop')
         const data = database.collection('users')
