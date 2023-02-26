@@ -7,6 +7,16 @@ import { generateSecret } from '../secret/secret.js'
 import { app } from "./config.js"
 
 export const requestsWS = () => {
+    app.post('/ping', async (req, res) => {
+        sendLog('webserver', '', 3)
+        sendLog('webserver', '-------------------- OPEN -------------------', 3)
+        sendLog('webserver', `(/ping) Received request from {${req.ip}}`, 3)
+
+        res.end(JSON.stringify({"result": "pong"}))
+
+        sendLog('webserver', '-------------------- CLOSE ------------------', 3)
+    })
+
     app.post('/register', async (req, res) => {
         sendLog('webserver', '', 3)
         sendLog('webserver', '-------------------- OPEN -------------------', 3)
@@ -67,6 +77,8 @@ export const requestsWS = () => {
 
         await getUsers().then(async doc => {
             if(doc.error) {
+                sendLog('mongodb', doc.error, 2)
+
                 out.error = doc.error.substring(0, doc.error.indexOf(':'))
                 return
             }
@@ -126,6 +138,8 @@ export const requestsWS = () => {
 
         await getUsers().then(async doc => {
             if(doc.error) {
+                sendLog('mongodb', doc.error, 2)
+
                 out.error = doc.error.substring(0, doc.error.indexOf(':'))
                 return
             }
@@ -219,6 +233,8 @@ export const requestsWS = () => {
 
         await getUsers().then(async doc => {
             if(doc.error) {
+                sendLog('mongodb', doc.error, 2)
+
                 out.error = doc.error.substring(0, doc.error.indexOf(':'))
                 return
             }
@@ -296,11 +312,14 @@ export const requestsWS = () => {
 
         let out = {
             result: null,
+            date: null,
             error: null
         }
 
         await getUsers().then(doc => {
             if(doc.error) {
+                sendLog('mongodb', doc.error, 2)
+
                 out.error = doc.error.substring(0, doc.error.indexOf(':'))
                 return
             }
@@ -339,8 +358,10 @@ export const requestsWS = () => {
                     setNewClipboard(req.body.cbText, req.body.cbDate, req.body.username)
 
                     out.result = req.body.cbText
+                    out.date = req.body.cbDate
                 } else {
                     out.result = doc.result[userIndex].cbText
+                    out.date = doc.result[userIndex].cbDate
                 }
             } else {
                 out.error = `Authentication failed {${req.body.username}}`
@@ -356,6 +377,73 @@ export const requestsWS = () => {
             }
         } else {
             sendLog('webserver', 'Successfully sent clipboard data', 3)
+        }
+
+        res.end(JSON.stringify(out))
+
+        sendLog('webserver', '-------------------- CLOSE ------------------', 3)
+    })
+
+    app.post('/validateToken', async (req, res) => {
+        sendLog('webserver', '', 3)
+        sendLog('webserver', '-------------------- OPEN -------------------', 3)
+        sendLog('webserver', `(/validateToken) Received request from {${req.ip}}`, 3)
+
+        let out = {
+            result: null,
+            error: null
+        }
+
+        await getUsers().then(async doc => {
+            if(doc.error) {
+                sendLog('mongodb', doc.error, 2)
+
+                out.error = doc.error.substring(0, doc.error.indexOf(':'))
+                return
+            }
+
+            let userIndex
+            for(let i=0; i<doc.result.length; i++) {
+                if(doc.result[i].user === req.body.username) {
+                    userIndex = i
+                    break
+                }
+            }
+
+            if(!userIndex && userIndex !== 0) {
+                out.error = 'User not found'
+                return
+            }
+
+            if(typeof doc.result[userIndex].secret === 'undefined') {
+                out.error = 'Account secret not found, please contact with server adminstrator'
+                return
+            }
+
+            let bearerHeader = req.headers.authorization
+            if(typeof bearerHeader !== 'undefined') {
+                const decoded = jwt.verify(bearerHeader, doc.result[userIndex].secret)
+                
+                if(typeof decoded.username === 'undefined' || decoded.username != req.body.username) {
+                    out.error = `Authentication failed {${req.body.username}}`
+                    return
+                }
+
+                out.result = 'Token is valid'
+            } else {
+                out.error = `Authentication failed {${req.body.username}}`
+                return
+            }
+        })
+
+        if(out.error) {
+            sendLog('webserver', `(/validateToken) Request ended with an error: ( \x1b[31m${out.error}\x1b[0m )`, 2)
+
+            if(out.error.includes('{')) {
+                out.error = out.error.substring(0, out.error.indexOf('{') - 1)
+            }
+        } else {
+            sendLog('webserver', 'Successfully changed password', 3)
         }
 
         res.end(JSON.stringify(out))
